@@ -1,103 +1,126 @@
 # Project Overview: Full-Stack Inventory & Order Management System
 
-Welcome to the deep dive of our application! This document is designed to give you a complete, top-down understanding of why this project exists, what problem it solves, and exactly how all the different files and folders work together to create a functioning web application.
+## 1. Project Introduction
+
+This project is a comprehensive, full-stack web application designed to handle inventory tracking, customer management, and order processing. The application is built using a modern technology stack, ensuring scalability, reliability, and an intuitive user experience. 
+
+### Live Deployment Links
+- **Frontend Application (Vercel):** [https://ethara-ai-assessment-9gg730ynf-tamanna-s-projects3.vercel.app/](https://ethara-ai-assessment-9gg730ynf-tamanna-s-projects3.vercel.app/)
+- **Backend API Documentation (Railway):** [https://ethara-ai-assessment-production-4266.up.railway.app/docs](https://ethara-ai-assessment-production-4266.up.railway.app/docs)
 
 ---
 
-## 1. The Problem Statement
+## 2. Problem Statement and Solution
 
-Many small to medium businesses struggle with keeping track of their inventory and customer orders. Doing this manually (using spreadsheets or pen and paper) leads to several problems:
-- **Overselling:** A customer buys an item that is actually out of stock because the spreadsheet wasn't updated.
-- **Data Fragmentation:** Customer details are in one book, product prices are in another, and past orders are lost in a drawer.
-- **Lack of Insights:** It's hard to quickly see how many products are running low on stock or how many total orders were placed today.
+### The Challenge
+Many businesses rely on fragmented systems, such as disconnected spreadsheets, to manage their core operations. This approach leads to severe operational bottlenecks:
+- **Inventory Discrepancies:** Without real-time synchronization, businesses risk overselling products that are out of stock.
+- **Data Silos:** Customer information, product pricing, and order histories are stored in separate locations, making it difficult to retrieve a cohesive view of operations.
+- **Lack of Analytics:** Identifying low-stock items or calculating total daily revenue requires manual, time-consuming data aggregation.
 
-## 2. Our Solution
-
-We built a **Full-Stack Web Application** to digitize and automate this process. 
-- **Centralized Database:** All products, customers, and orders are stored securely in one place (a PostgreSQL database).
-- **Automated Inventory:** When an order is placed, the system automatically checks if there is enough stock. If there is, it deducts the stock immediately. If not, it prevents the order.
-- **User-Friendly Dashboard:** A modern, visual frontend allows staff to easily add products, register customers, place orders, and view low-stock alerts at a glance.
-
----
-
-## 3. How Everything Connects (The Architecture)
-
-Think of our application as a restaurant:
-1. **The Frontend (React) = The Dining Area & Menu:** This is what the user sees and interacts with. They click buttons and fill out forms.
-2. **The Backend API (FastAPI) = The Waiter & Kitchen:** The frontend can't talk to the database directly (for security reasons). Instead, it asks the backend. The backend receives the request, validates it, and performs the heavy lifting.
-3. **The Database (PostgreSQL) = The Pantry:** This is where the actual data (ingredients) is securely stored permanently.
-
-### The Data Flow (Example: Creating an Order)
-1. **User Action:** The user clicks "Place Order" on the React Frontend (`Orders.jsx`).
-2. **The Call:** The Frontend uses the `api/index.js` file to send an HTTP POST request containing the customer ID and chosen items to the Backend URL (`/orders`).
-3. **The Router:** The Backend's `routers/orders.py` receives the request. It checks if the data looks correct according to the rules in `schemas.py`.
-4. **The Worker:** The router passes the data to `crud.py` (the worker).
-5. **Database Interaction:** `crud.py` checks `models.py` to understand the database structure, verifies stock levels, deducts the stock, saves the new order to the database, and returns the saved order.
-6. **The Response:** The router sends the saved order back to the Frontend.
-7. **UI Update:** React receives the success message and updates the screen so the user sees their new order in the table!
+### The Solution
+We developed a centralized **Full-Stack Inventory & Order Management System** to digitize and automate these workflows.
+- **Unified Database Architecture:** All entities (Products, Customers, Orders) are relational and stored in a robust PostgreSQL database, ensuring data integrity.
+- **Automated Transaction Logic:** When a new order is generated, the backend API automatically verifies product availability and atomically deducts the purchased quantities from the central inventory. If stock is insufficient, the transaction is securely rejected.
+- **Real-Time Dashboard UI:** The React-based frontend provides staff with immediate access to critical metrics, including low-stock alerts, total revenue, and comprehensive data tables for managing the business.
 
 ---
 
-## 4. File-by-File Breakdown
+## 3. System Architecture and Data Flow
 
-Here is a detailed explanation of exactly what each file in the codebase does.
+The application utilizes a decoupled client-server architecture.
 
-### A. The Backend (Python / FastAPI)
+1. **The Client (React Frontend):** Runs in the user's browser. It handles rendering the user interface, managing local component state, capturing user inputs, and displaying data. It communicates with the server exclusively via HTTP REST APIs.
+2. **The Server (FastAPI Backend):** Acts as the secure middleware. It exposes specific API endpoints, validates incoming JSON payloads, enforces business logic (like checking inventory levels), and executes queries against the database.
+3. **The Database (PostgreSQL):** The persistent storage layer. It maintains the relational schema and enforces data integrity rules (like ensuring Product SKUs and Customer Emails are strictly unique).
 
-Located in the `/backend/app/` folder. This is the brain of the application.
+### Example Data Flow: Creating a New Order
+1. **User Interaction:** The user selects a customer and adds products to their cart on the `/orders` page in the React frontend.
+2. **API Request:** The frontend triggers the `createOrder` function in `api/index.js`, sending a JSON `POST` request to the backend's `/orders` endpoint.
+3. **Routing & Validation:** The backend's `routers/orders.py` intercepts the request. It uses Pydantic schemas (`schemas.py`) to validate that the incoming data contains a valid `customer_id` and a list of items with valid `quantities`.
+4. **Execution Layer:** The router forwards the validated data to the `create_order` function in `crud.py`.
+5. **Database Transaction:** 
+   - `crud.py` queries the database to verify the customer exists.
+   - It iterates through the requested products, checking if `stock_quantity` is sufficient.
+   - It calculates the total price dynamically.
+   - It creates a new `Order` record, creates multiple `OrderItem` records, and updates the `Product` records to deduct the stock.
+   - These database operations are committed as a single transaction.
+6. **Response:** The backend returns the newly created Order object as a JSON response to the frontend.
+7. **State Update:** The React frontend receives the 201 Created response, closes the order modal, and re-fetches the latest data to update the UI tables seamlessly.
+
+---
+
+## 4. Database Schema
+
+The system utilizes a relational database structure defined via SQLAlchemy ORM.
+
+### 1. `products` Table
+Stores all inventory items available for sale.
+- `id` (Integer, Primary Key): Unique identifier for the product.
+- `name` (String): The display name of the product.
+- `sku` (String, Unique): Stock Keeping Unit, a unique internal barcode/identifier.
+- `price` (Float): The cost per unit of the product.
+- `stock_quantity` (Integer): The current amount of units available in the warehouse.
+
+### 2. `customers` Table
+Stores registered client profiles.
+- `id` (Integer, Primary Key): Unique identifier for the customer.
+- `full_name` (String): First and last name of the customer.
+- `email` (String, Unique): Contact email, enforced as unique to prevent duplicate accounts.
+- `phone_number` (String): Contact phone number.
+
+### 3. `orders` Table
+Stores the high-level details of a transaction.
+- `id` (Integer, Primary Key): Unique identifier for the order invoice.
+- `customer_id` (Integer, Foreign Key): Links the order to a specific user in the `customers` table.
+- `total_amount` (Float): The final calculated cost of all items in the order.
+- `created_at` (DateTime): Automatically generated timestamp of when the transaction occurred.
+
+### 4. `order_items` Table
+A junction table that maps individual products to specific orders, handling the many-to-many relationship.
+- `id` (Integer, Primary Key): Unique identifier for the line item.
+- `order_id` (Integer, Foreign Key): Links this item to a parent record in the `orders` table.
+- `product_id` (Integer, Foreign Key): Links this item to a specific record in the `products` table.
+- `quantity` (Integer): The number of units of this specific product purchased in this specific order.
+
+*(Note: Deleting a Customer cascades and deletes their Orders. Deleting an Order cascades and deletes its OrderItems.)*
+
+---
+
+## 5. Comprehensive File Structure Breakdown
+
+### A. The Backend API (Python / FastAPI)
+Located in `/backend/app/`. This layer provides the secure API infrastructure.
 
 *   **`main.py`**
-    *   **What it does:** It is the starting point of the backend server.
-    *   **How it connects:** It imports all the "routers" and attaches them to the main FastAPI application. It also sets up "CORS" (Cross-Origin Resource Sharing), which acts as a bouncer, allowing our specific React frontend to communicate with it securely.
+    *   **Functionality:** The core application entry point. It initializes the FastAPI instance, configures CORS (Cross-Origin Resource Sharing) middleware to allow web browsers to securely request data from different domains, and binds all modular routers to the main application tree.
 *   **`database.py`**
-    *   **What it does:** It sets up the physical connection to the PostgreSQL database.
-    *   **How it connects:** It reads the `DATABASE_URL` environment variable to find the database on the network. It creates a `SessionLocal` factory that hands out temporary database connections to any router that needs to save or read data.
+    *   **Functionality:** Manages the physical PostgreSQL database connection. It utilizes SQLAlchemy to create an `engine` (the core connection pool) and a `SessionLocal` factory, which provides isolated, temporary database sessions for individual API requests.
 *   **`models.py`**
-    *   **What it does:** It defines the physical blueprint for the database tables. 
-    *   **How it connects:** It tells SQLAlchemy (our database tool) to create four tables: `products`, `customers`, `orders`, and `order_items`. It defines the columns (e.g., `price` is a Float, `name` is a String) and creates the links (Foreign Keys) between them, such as linking an `order` to a specific `customer`.
+    *   **Functionality:** Defines the ORM (Object-Relational Mapping) classes. These Python classes strictly represent the tables detailed in the Database Schema section above, allowing the application to interact with the database using Python objects instead of raw SQL strings.
 *   **`schemas.py`**
-    *   **What it does:** It acts as a strict security guard for data entering and leaving the backend.
-    *   **How it connects:** Before the backend accepts an order from the frontend, it checks `schemas.py` to ensure the data is shaped correctly (e.g., "Did they provide an email? Is the price greater than zero?"). It uses a library called Pydantic for this validation.
+    *   **Functionality:** Defines Pydantic data models. While `models.py` defines how data is *stored*, `schemas.py` defines how data is *transmitted* over the network. It enforces strict type-checking and validation rules (e.g., ensuring an email string is formatted correctly, or a price is not negative) before data is allowed to reach the database execution layer.
 *   **`crud.py`**
-    *   **What it does:** CRUD stands for Create, Read, Update, Delete. This file contains all the "worker" functions that actually talk to the database.
-    *   **How it connects:** When a router wants to find a product, it doesn't write database code itself; it calls `get_product()` from `crud.py`. This file handles all the complex logic, like looping through an order to deduct stock from the product table before saving the order table.
-*   **`routers/products.py`, `customers.py`, `orders.py`**
-    *   **What they do:** These files define the exact URLs (endpoints) the frontend can visit, like `GET /products` or `POST /orders`.
-    *   **How they connect:** They receive web traffic from `main.py`, validate the incoming JSON data using `schemas.py`, pass the validated data to the worker functions in `crud.py`, and then send the result back to the frontend as a JSON response.
+    *   **Functionality:** Houses the core business logic and database execution scripts (Create, Read, Update, Delete). Routers offload all complex database operations to these helper functions to maintain clean, modular architecture.
+*   **`routers/` (products.py, customers.py, orders.py)**
+    *   **Functionality:** These files separate the API endpoints logically by domain. They act as controllers: defining the URL paths (`GET /products`), injecting database dependencies, accepting the validated Pydantic schemas, routing the data to `crud.py`, and handling HTTP error responses (e.g., raising a 404 Not Found exception).
 
-### B. The Frontend (React / Vite)
+### B. The Client Interface (React / Vite)
+Located in `/frontend/src/`. This layer provides the interactive graphical user interface.
 
-Located in the `/frontend/src/` folder. This is the user interface.
-
-*   **`main.jsx`**
-    *   **What it does:** The absolute starting point of the frontend.
-    *   **How it connects:** It grabs the empty `index.html` file provided by the browser and injects the entire React application (`App.jsx`) into it. It also loads the global CSS styles.
-*   **`App.jsx`**
-    *   **What it does:** It acts as the structural frame of the website.
-    *   **How it connects:** It uses `react-router-dom` to act as a switchboard. It always displays the `Sidebar` component on the left, but looks at the URL (e.g., `/products`) to decide which Page component (e.g., `Products.jsx`) to display on the right.
+*   **`main.jsx` & `App.jsx`**
+    *   **Functionality:** `main.jsx` mounts the React application into the browser's Document Object Model (DOM). `App.jsx` establishes the global application layout (Sidebar and Main Content Area) and implements `react-router-dom` to dynamically swap out page components based on the current browser URL without triggering a full page reload.
 *   **`api/index.js`**
-    *   **What it does:** It is the "telephone" used to call the backend.
-    *   **How it connects:** It uses a library called `axios`. Instead of the React pages having to write complex network code, they just import a simple function from here like `getProducts()`. This file knows the URL of the backend and handles formatting the HTTP requests.
+    *   **Functionality:** A centralized networking module utilizing the `axios` library. It abstracts away raw HTTP requests, providing the rest of the React application with simple, clean JavaScript functions (like `getProducts()`) to interact with the backend API. It dynamically targets the Vercel production API URL or local development server based on environment variables.
 *   **`components/Sidebar.jsx`**
-    *   **What it does:** A reusable visual component that draws the left-hand navigation menu.
-    *   **How it connects:** It uses `NavLink` to change the browser URL without reloading the page, seamlessly switching between Dashboard, Products, Customers, and Orders.
+    *   **Functionality:** A persistent UI component providing primary navigation links.
 *   **`pages/Dashboard.jsx`**
-    *   **What it does:** The welcome page showing a summary of the system.
-    *   **How it connects:** When it loads, it uses `api/index.js` to fetch all products, customers, and orders simultaneously. It calculates totals and low-stock alerts, saving the results into React `state` variables to display on the screen.
-*   **`pages/Products.jsx` & `Customers.jsx`**
-    *   **What they do:** They display a data table of records and provide a pop-up form to add or delete records.
-    *   **How they connect:** They map over the data arrays provided by the backend to draw table rows. When the user submits the form, they package the input data and send it to the backend via `api/index.js`.
+    *   **Functionality:** The application overview. It utilizes `Promise.all` to fetch metrics from all major database tables concurrently. It calculates dynamic statistics such as 'Low Stock Alerts' and renders them into high-level summary cards.
+*   **`pages/Products.jsx` & `pages/Customers.jsx`**
+    *   **Functionality:** High-level management interfaces. They utilize React state (`useState`) to manage local data arrays and HTML form inputs. They implement asynchronous functions (`useEffect`) to fetch and render data tables, and provide interactive Modal overlays for creating, editing, or deleting records.
 *   **`pages/Orders.jsx`**
-    *   **What it does:** The most complex page. It shows past orders and provides a "shopping cart" interface to create new ones.
-    *   **How it connects:** It fetches products and customers from the backend to populate drop-down menus. As the user selects items and quantities, it saves them in a local "cart" state array, calculating the total price dynamically. Upon submission, it sends the complex nested data structure to the backend's `/orders` endpoint.
+    *   **Functionality:** The most complex UI component. It manages a sophisticated "Cart" state. It fetches available products and customers to populate selection forms, dynamically calculates cart totals locally based on selected quantities, and packages a complex, nested JSON object to submit to the backend for final transaction processing.
 
-### C. Infrastructure & Containerization
-
-Located in the root and respective subfolders. These files package the app so it runs anywhere.
-
-*   **`backend/Dockerfile` & `frontend/Dockerfile`**
-    *   **What they do:** They act as recipes to package the code into isolated boxes called "Containers".
-    *   **How they connect:** The backend Dockerfile installs Python and requirements.txt. The frontend Dockerfile is a "multi-stage build": it uses Node.js to squish the React code into optimized HTML files, then throws Node.js away and puts those HTML files into a tiny, lightning-fast Nginx web server container.
-*   **`docker-compose.yml`**
-    *   **What it does:** The orchestra conductor.
-    *   **How it connects:** Instead of starting the database, backend, and frontend manually one by one, this file defines how they all start together. It creates a private virtual network so the backend can securely talk to the database using the name `db`, and maps ports so your computer can access the frontend on port `80` and the backend on `8000`.
+### C. Infrastructure
+*   **`docker-compose.yml` & `Dockerfile`s**
+    *   **Functionality:** These files define the containerization strategy, allowing the entire system to be built and run uniformly across different operating systems. The backend Dockerfile packages Python and dependencies. The frontend Dockerfile utilizes a multi-stage build: first using Node.js to compile the React code into optimized static HTML/JS assets, then serving those assets via a lightweight Nginx web server. `docker-compose.yml` orchestrates these isolated containers into a unified virtual network.
