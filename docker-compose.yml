@@ -1,36 +1,70 @@
+# Docker Compose is a tool for defining and running multi-container Docker applications.
+# Instead of building and starting the database, then the backend, then the frontend separately
+# using long, complex terminal commands, we write the entire setup here.
+# Then, we can start EVERYTHING at once just by typing "docker-compose up".
+
+# Specify the format version of this file
 version: '3.8'
 
+# 'services' are the individual pieces of our application
 services:
+
+  # 1. The Database Service
+  # ---------------------------------------------------------
   db:
+    # Instead of building our own database container, we just download the official PostgreSQL image
     image: postgres:15-alpine
     environment:
+      # We set up the initial username, password, and database name.
+      # The '${VAR:-default}' syntax means: "Try to use the environment variable DB_USER, but if it doesn't exist, use 'postgres'".
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-inventory_db}
     volumes:
+      # Containers are temporary! If you delete a database container, you lose all the data inside.
+      # A 'volume' fixes this. It creates a safe, permanent folder on your host computer ('postgres_data')
+      # and links it to the database folder inside the container.
       - postgres_data:/var/lib/postgresql/data
     ports:
+      # Connect port 5432 on your laptop to port 5432 inside the container
       - "5432:5432"
 
+  # 2. The Backend Service
+  # ---------------------------------------------------------
   backend:
     build:
+      # Tell Docker: "Go into the /backend folder and use the Dockerfile there to build this container."
       context: ./backend
     ports:
+      # Make the backend accessible on http://localhost:8000
       - "8000:8000"
     environment:
+      # The backend needs to know how to connect to the database. 
+      # Notice we use the service name 'db' in the URL (postgresql://.../...@db:5432/...). 
+      # Docker Compose automatically creates a private network so the backend can find the database using its name!
       - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-inventory_db}
     depends_on:
+      # Don't try to start the backend until the database container has been created.
       - db
 
+  # 3. The Frontend Service
+  # ---------------------------------------------------------
   frontend:
     build:
       context: ./frontend
+      # Pass an argument to the frontend Dockerfile during the build process
+      # so it knows where to send API requests.
       args:
         - VITE_API_URL=http://localhost:8000
     ports:
+      # Make the frontend accessible on http://localhost:80 (the default web port).
+      # You can just visit http://localhost in your browser to see the app!
       - "80:80"
     depends_on:
+      # Wait for the backend to start before starting the frontend
       - backend
 
+# This explicitly defines the named volume we used in the 'db' service above,
+# telling Docker Compose to manage its permanent storage.
 volumes:
   postgres_data:
